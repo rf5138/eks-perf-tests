@@ -239,10 +239,6 @@ spec:
       operator: in
       values: ["true"]
     params:
-    - name: cluster-name
-      value: $(params.cluster-name)
-    - name: endpoint
-      value: $(params.endpoint)
     - name: operator-role-arn
       value: $(params.operator-role-arn)
     - name: gate-uri
@@ -252,6 +248,9 @@ spec:
     taskRef:
       kind: Task
       name: kcm-flags-gate
+    workspaces:
+    - name: config
+      workspace: config
   # One task pair per KCM controller, one controller at a time: <controller>-throughput runs after
   # the previous controller's task, and <controller>-cw-metrics publishes its datapoint under the
   # controller's own metric name. A failed CL2 run still lets the next controller run (datapoint 1);
