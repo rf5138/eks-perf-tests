@@ -69,6 +69,15 @@ spec:
     - namespace
     - deployment
     description: "KCM controllers to test, one at a time in the order of their tasks below; a controller not listed is skipped"
+  - name: hold-for-flags
+    default: "false"
+    description: "true holds the run after KWOK setup until gate-uri exists in S3, so KCM flags can be changed first"
+  - name: gate-uri
+    default: ""
+    description: "s3://bucket/key that opens the hold; used only when hold-for-flags is true"
+  - name: operator-role-arn
+    default: ""
+    description: "IAM role given cluster-admin on the test cluster while held, for the flag change; empty grants nothing"
   tasks:
   - name: slack-notification
     params:
@@ -224,6 +233,25 @@ spec:
     workspaces:
     - name: config    
       workspace: config
+  - name: kcm-flags-gate
+    when:
+    - input: $(params.hold-for-flags)
+      operator: in
+      values: ["true"]
+    params:
+    - name: cluster-name
+      value: $(params.cluster-name)
+    - name: endpoint
+      value: $(params.endpoint)
+    - name: operator-role-arn
+      value: $(params.operator-role-arn)
+    - name: gate-uri
+      value: $(params.gate-uri)
+    runAfter:
+    - install-kwok-addon
+    taskRef:
+      kind: Task
+      name: kcm-flags-gate
   # One task pair per KCM controller, one controller at a time: <controller>-throughput runs after
   # the previous controller's task, and <controller>-cw-metrics publishes its datapoint under the
   # controller's own metric name. A failed CL2 run still lets the next controller run (datapoint 1);
@@ -252,6 +280,7 @@ spec:
       value: $(params.iterations)
     runAfter:
     - install-kwok-addon
+    - kcm-flags-gate
     taskRef:
       kind: Task
       name: kcm-controller-throughput
