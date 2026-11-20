@@ -120,6 +120,7 @@ spec:
       kind: Task
       name: awscli-role-create
   - name: create-eks-cluster
+    retries: 3 # the new API server name can take a few minutes to resolve; create is skipped when the cluster exists
     params:
     - name: cluster-name
       value: $(params.cluster-name)
