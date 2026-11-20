@@ -8,25 +8,28 @@ spec:
     Holds a pipeline after cluster setup so an operator can change KCM flags (for example the
     --concurrent-*-syncs worker counts) on the control plane before the loads start.
     Optionally maps an operator IAM role to system:masters in aws-auth (the test clusters use
-    CONFIG_MAP authentication), then waits until the object at gate-uri exists in S3.
-    Fails after timeout-minutes, so finally teardown runs.
+    CONFIG_MAP authentication), then waits until ConfigMap kube-system/<gate-configmap> exists
+    on the test cluster. Fails after timeout-minutes, so finally teardown runs.
   params:
   - name: operator-role-arn
     description: IAM role to map to system:masters on the test cluster; empty maps nothing
     default: ""
-  - name: gate-uri
-    description: s3://bucket/key the operator writes when the flags are set; its content is printed
+  - name: gate-configmap
+    description: ConfigMap in kube-system on the test cluster that the operator creates when the flags are set
+    default: "kcm-flags-gate"
   - name: timeout-minutes
     default: "240"
   workspaces:
   - name: config
     mountPath: /config/
+  stepTemplate:
+    env:
+    - name: KUBECONFIG
+      value: /config/kubeconfig
   steps:
   - name: grant-operator-access
     image: alpine/k8s:1.35.0
     env:
-    - name: KUBECONFIG
-      value: /config/kubeconfig
     - name: ROLE
       value: $(params.operator-role-arn)
     script: |
@@ -40,13 +43,13 @@ spec:
         -p "$(jq -n --arg r "$roles" '{data: {mapRoles: $r}}')"
       echo "mapped $ROLE to system:masters"
   - name: wait-for-gate
-    image: amazon/aws-cli
+    image: alpine/k8s:1.35.0
     script: |
       #!/bin/bash
       set -uo pipefail
       deadline=$(( $(date +%s) + $(params.timeout-minutes) * 60 ))
-      echo "waiting for $(params.gate-uri)"
-      until aws s3 cp "$(params.gate-uri)" - 2>/dev/null; do
+      echo "waiting for configmap kube-system/$(params.gate-configmap)"
+      until kubectl -n kube-system get configmap "$(params.gate-configmap)" -o jsonpath='{.data}' 2>/dev/null; do
         [ "$(date +%s)" -lt "$deadline" ] || { echo "gate not opened in $(params.timeout-minutes) min" >&2; exit 1; }
         sleep 30
       done

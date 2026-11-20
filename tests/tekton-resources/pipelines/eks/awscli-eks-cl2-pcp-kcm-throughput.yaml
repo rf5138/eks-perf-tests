@@ -71,10 +71,10 @@ spec:
     description: "KCM controllers to test, one at a time in the order of their tasks below; a controller not listed is skipped"
   - name: hold-for-flags
     default: "false"
-    description: "true holds the run after KWOK setup until gate-uri exists in S3, so KCM flags can be changed first"
-  - name: gate-uri
-    default: ""
-    description: "s3://bucket/key that opens the hold; used only when hold-for-flags is true"
+    description: "true holds the run after KWOK setup until gate-configmap exists, so KCM flags can be changed first"
+  - name: gate-configmap
+    default: "kcm-flags-gate"
+    description: "ConfigMap in kube-system on the test cluster that opens the hold; used only when hold-for-flags is true"
   - name: operator-role-arn
     default: ""
     description: "IAM role given cluster-admin on the test cluster while held, for the flag change; empty grants nothing"
@@ -241,8 +241,8 @@ spec:
     params:
     - name: operator-role-arn
       value: $(params.operator-role-arn)
-    - name: gate-uri
-      value: $(params.gate-uri)
+    - name: gate-configmap
+      value: $(params.gate-configmap)
     runAfter:
     - install-kwok-addon
     taskRef:
