@@ -40,6 +40,11 @@ spec:
   - name: deployment-throughput-threshold
     default: "1"
     description: "Deployment controller throughput threshold, Deployment rollouts per second that every rollout wave must reach; 1 records only (only the 15m rollout ceiling applies)"
+  - name: hpa-metric-name
+    default: 'pcp-hpa-throughput'
+  - name: hpa-throughput-threshold
+    default: "1"
+    description: "HPA controller throughput threshold, HPAs whose desired replica count changes per second, counted from the metric change until every HPA has the new count; 1 records only (only the 10m half-wave ceiling applies)"
   - name: results-bucket
   - name: slack-hook
   - name: slack-message
@@ -68,6 +73,7 @@ spec:
     - endpointslice
     - namespace
     - deployment
+    - hpa
     description: "KCM controllers to test, one at a time in the order of their tasks below; a controller not listed is skipped"
   tasks:
   - name: slack-notification
@@ -490,8 +496,6 @@ spec:
       value: deployment
     - name: cl2-throughput-threshold
       value: $(params.deployment-throughput-threshold)
-    - name: cl2-waves
-      value: "6"
     - name: nodes
       value: $(params.desired-nodes)
     - name: results-bucket
@@ -528,6 +532,55 @@ spec:
       value: $(context.pipelineRun.name)
     runAfter:
       - deployment-throughput
+    taskRef:
+      kind: Task
+      name: cloudwatch
+  - name: hpa-throughput
+    when:
+    - input: hpa
+      operator: in
+      values: ["$(params.controllers[*])"]
+    params:
+    - name: controller
+      value: hpa
+    - name: cl2-throughput-threshold
+      value: $(params.hpa-throughput-threshold)
+    - name: nodes
+      value: $(params.desired-nodes)
+    - name: results-bucket
+      value: $(params.results-bucket)
+    - name: cluster-name
+      value: $(params.cluster-name)
+    - name: control-plane-tier
+      value: $(params.control-plane-tier)
+    - name: iterations
+      value: $(params.iterations)
+    runAfter:
+    - deployment-throughput
+    taskRef:
+      kind: Task
+      name: kcm-controller-throughput
+    workspaces:
+    - name: source
+      workspace: source
+    - name: results
+      workspace: results
+    - name: config
+      workspace: config
+  - name: hpa-cw-metrics
+    params:
+    - name: dimensions
+      value: $(params.desired-nodes)
+    - name: value
+      value: $(tasks.hpa-throughput.results.datapoint)
+    - name: namespace
+      value: $(params.kubernetes-version)
+    - name: metric-name
+      value: $(params.hpa-metric-name)
+    - name: run-id
+      value: $(context.pipelineRun.name)
+    runAfter:
+      - hpa-throughput
     taskRef:
       kind: Task
       name: cloudwatch
